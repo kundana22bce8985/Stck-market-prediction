@@ -1,0 +1,124 @@
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+void main() {
+  runApp(StockPredictionApp());
+}
+
+class StockPredictionApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Stock Prediction App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: StockHomePage(),
+    );
+  }
+}
+
+class StockHomePage extends StatefulWidget {
+  @override
+  _StockHomePageState createState() => _StockHomePageState();
+}
+
+class _StockHomePageState extends State<StockHomePage> {
+  final TextEditingController _controller = TextEditingController();
+  String _companyName = '';
+  String _closePrice = '';
+  String _latestDate = '';
+  String _errorMessage = '';
+
+  void _fetchStockData() async {
+    final String apiKey = ' K8KYXI15OZ733VLG'; // Replace with your API key
+    final String symbol = _controller.text;
+
+    if (symbol.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter a stock symbol.';
+        _companyName = '';
+        _closePrice = '';
+        _latestDate = '';
+      });
+      return;
+    }
+
+    final String url =
+        'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=$symbol&apikey=$apiKey';
+
+    try {
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> jsonResponse = json.decode(response.body);
+        if (jsonResponse.containsKey('Time Series (Daily)')) {
+          var timeSeries = jsonResponse['Time Series (Daily)'];
+          var latestDateKey = timeSeries.keys.first;
+          var latestData = timeSeries[latestDateKey];
+
+          setState(() {
+            _companyName = symbol.toUpperCase();
+            _latestDate = latestDateKey;
+            _closePrice = latestData['4. close'];
+            _errorMessage = '';
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'No data found for this stock symbol.';
+            _companyName = '';
+            _closePrice = '';
+            _latestDate = '';
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Error fetching data: ${response.statusCode}';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error: $e';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Stock Prediction App'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _controller,
+              decoration: InputDecoration(
+                labelText: 'Enter stock symbol (e.g., AAPL)',
+                errorText: _errorMessage.isNotEmpty ? _errorMessage : null,
+              ),
+            ),
+            SizedBox(height: 10),
+            ElevatedButton(
+              onPressed: _fetchStockData,
+              child: Text('Fetch Data'),
+            ),
+            SizedBox(height: 20),
+            if (_companyName.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Company: $_companyName', style: TextStyle(fontSize: 20)),
+                  Text('Date: $_latestDate', style: TextStyle(fontSize: 18)),
+                  Text('Close Price: \$$_closePrice', style: TextStyle(fontSize: 18)),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
